@@ -1,0 +1,106 @@
+name: Validate Scripts
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    name: ShellCheck Validation
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install ShellCheck
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y shellcheck
+        
+    - name: Run ShellCheck on installation scripts
+      run: |
+        echo "Checking ubuntu-stage1.sh..."
+        shellcheck ubuntu-stage1.sh
+        
+        echo "Checking ubuntu-stage2.sh..."
+        shellcheck ubuntu-stage2.sh
+        
+        echo "Checking ubuntu-stage3.sh..."
+        shellcheck ubuntu-stage3.sh
+        
+        echo "Checking ubuntu-config.sh..."
+        shellcheck ubuntu-config.sh
+        
+    - name: Validate script permissions
+      run: |
+        # Check that scripts are executable
+        test -x ubuntu-stage1.sh || echo "Warning: ubuntu-stage1.sh not executable"
+        test -x ubuntu-stage2.sh || echo "Warning: ubuntu-stage2.sh not executable"  
+        test -x ubuntu-stage3.sh || echo "Warning: ubuntu-stage3.sh not executable"
+        
+    - name: Basic syntax validation
+      run: |
+        # Test bash syntax without execution
+        bash -n ubuntu-stage1.sh
+        bash -n ubuntu-stage2.sh
+        bash -n ubuntu-stage3.sh
+        bash -n ubuntu-config.sh
+
+  documentation:
+    runs-on: ubuntu-latest
+    name: Documentation Validation
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check required files
+      run: |
+        # Verify all required documentation files exist
+        test -f README.md || (echo "Missing README.md" && exit 1)
+        test -f DESIGN.md || (echo "Missing DESIGN.md" && exit 1)
+        test -f SPECS.md || (echo "Missing SPECS.md" && exit 1)
+        test -f CONTRIBUTING.md || (echo "Missing CONTRIBUTING.md" && exit 1)
+        test -f CHANGELOG.md || (echo "Missing CHANGELOG.md" && exit 1)
+        test -f SECURITY.md || (echo "Missing SECURITY.md" && exit 1)
+        test -f LICENSE || (echo "Missing LICENSE" && exit 1)
+        
+    - name: Validate markdown syntax
+      uses: DavidAnson/markdownlint-action@v1
+      with:
+        files: '**/*.md'
+        config: |
+          {
+            "MD013": false,
+            "MD033": false,
+            "MD041": false
+          }
+
+  configuration:
+    runs-on: ubuntu-latest
+    name: Configuration Validation
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Validate configuration structure
+      run: |
+        # Check that required configuration variables are defined
+        grep -q "PARTITION_MODE=" ubuntu-config.sh || (echo "Missing PARTITION_MODE" && exit 1)
+        grep -q "HOSTNAME=" ubuntu-config.sh || (echo "Missing HOSTNAME" && exit 1)
+        grep -q "POOL_NAME=" ubuntu-config.sh || (echo "Missing POOL_NAME" && exit 1)
+        grep -q "INSTALL_SSH=" ubuntu-config.sh || (echo "Missing INSTALL_SSH" && exit 1)
+        
+        # Check that arrays are properly defined
+        grep -q "ADDITIONAL_PACKAGES=(" ubuntu-config.sh || (echo "Missing ADDITIONAL_PACKAGES array" && exit 1)
+        grep -q "ZFS_DATASETS=(" ubuntu-config.sh || (echo "Missing ZFS_DATASETS array" && exit 1)
+        grep -q "USERS=(" ubuntu-config.sh || (echo "Missing USERS array" && exit 1)
+        
+    - name: Test configuration loading
+      run: |
+        # Test that configuration can be sourced without errors
+        bash -c "source ubuntu-config.sh && echo 'Configuration loaded successfully'"
