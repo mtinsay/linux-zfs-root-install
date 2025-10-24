@@ -167,27 +167,7 @@ install_kernel() {
 install_grub() {
     log "Installing and configuring GRUB..."
     
-    # # Create GRUB directory on EFI partition and set up bind mount
-    # log "Setting up GRUB bind mount from /boot/efi/grub to /boot/grub..."
-    # mkdir -p /boot/efi/grub
-    # mkdir -p /boot/grub
-    # mount -v --bind /boot/efi/grub /boot/grub
-    # 
-    # # Add bind mount to fstab (after /boot/efi entry)
-    # log "Adding GRUB bind mount to fstab..."
-    # # Find the line with /boot/efi mount point and add the bind mount after it
-    # if grep -q " /boot/efi " /etc/fstab; then
-    #     # Insert bind mount entry after the /boot/efi line (match mount point specifically)
-    #     sed -i '/ \/boot\/efi /a /boot/efi/grub /boot/grub none bind 0 0' /etc/fstab
-    #     log "GRUB bind mount added to fstab after /boot/efi entry"
-    # else
-    #     # If no /boot/efi entry found, something went wrong with the installation
-    #     error "No /boot/efi entry found in /etc/fstab!"
-    #     error "This indicates a problem with the EFI partition setup."
-    #     error "Cannot proceed with GRUB bind mount configuration."
-    #     error "Please check the fstab generation in stage1."
-    #     exit 1
-    # fi
+
     
     apt install -y grub-efi-amd64 grub-efi-amd64-signed shim-signed
     
@@ -280,15 +260,7 @@ install_grub() {
     
     update-grub
     
-    # # Determine the drive from boot partition for GRUB installation
-    # local boot_drive
-    # if [[ "$PARTITION_MODE" == "auto" ]]; then
-    #     boot_drive="$DISK"
-    # else
-    #     # Extract drive from boot partition (remove partition number)
-    #     boot_drive=$(echo "$BOOT_PARTITION" | sed 's/[0-9]*$//')
-    # fi
-    # 
+
     log "Installing GRUB to EFI directory"
     grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --recheck --no-floppy
 }
@@ -296,11 +268,11 @@ install_grub() {
 configure_zfs() {
     log "Configuring ZFS..."
     
-    # # Enable ZFS services
-    # systemctl enable zfs.target
-    # systemctl enable zfs-import-cache
-    # systemctl enable zfs-mount
-    # systemctl enable zfs-import.target
+    # Enable ZFS services
+    systemctl enable zfs.target
+    systemctl enable zfs-import-cache
+    systemctl enable zfs-mount
+    systemctl enable zfs-import.target
     
     # Set bootfs property
     zpool set bootfs=$POOL_NAME/$ROOT_DATASET_NAME $POOL_NAME
@@ -431,22 +403,17 @@ install_additional_packages() {
     fi
 }
 
-# cleanup() {
-#     log "Cleaning up..."
-#     apt autoremove -y --purge
-#     apt autoclean
-# }
+cleanup() {
+    log "Cleaning up..."
+    apt autoremove -y --purge
+    apt autoclean
+}
 
 final_configuration() {
     log "Final configuration..."
     
     # Update initramfs
     update-initramfs -c -k all
-    
-    # Verify ZFS boot filesystem (already set to legacy mountpoint)
-    
-    # # Create snapshot of clean installation
-    # zfs snapshot $POOL_NAME/$ROOT_DATASET_NAME@install
 }
 
 main() {
@@ -524,7 +491,7 @@ main() {
     fi
     
     create_users
-    # cleanup
+    cleanup
     
     # Install and configure GRUB after all system configuration is complete
     install_grub

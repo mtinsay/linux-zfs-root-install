@@ -80,7 +80,7 @@ INSTALL_SSH="true"          # Install OpenSSH server (can be overridden with --s
 
 # ZFS configuration
 POOL_NAME="zpool"
-ROOT_DATASET_NAME="mint"    # Top-level root dataset name (e.g., "ROOT", "SYSTEM", "OS")
+ROOT_DATASET_NAME="Ubuntu"    # Top-level root dataset name (e.g., "ROOT", "SYSTEM", "OS")
                            # All datasets will be created under this: rpool/ROOT/home, rpool/ROOT/var, etc.
 
 # ZFS pool reuse options
@@ -128,43 +128,43 @@ ZFS_DATASETS=(
     "home/root:/root:"
     
     # Var datasets (organized by hierarchy) - uncomment as needed
-    # "var:/var:"
+    "var:/var:"
     
     # Level 1: Direct /var subdirectories (alphabetical) - uncomment as needed
-    # "var/cache:/var/cache:"
-    # "var/games:/var/games:"
-    # "var/lib:/var/lib:"
-    # "var/log:/var/log:"
-    # "var/mail:/var/mail:"
-    # "var/snap:/var/snap:"
-    # "var/spool:/var/spool:"
-    # "var/tmp:/var/tmp:"
-    # "var/www:/var/www:"
+    "var/cache:/var/cache:"
+    "var/games:/var/games:"
+    "var/lib:/var/lib:"
+    "var/log:/var/log:"
+    "var/mail:/var/mail:"
+    "var/snap:/var/snap:"
+    "var/spool:/var/spool:"
+    "var/tmp:/var/tmp:"
+    "var/www:/var/www:"
     
     # Level 2: /var/lib subdirectories (alphabetical) - uncomment as needed
-    # "var/lib/AccountsService:/var/lib/AccountsService:"
-    # "var/lib/apt:/var/lib/apt:"
-    # "var/lib/dpkg:/var/lib/dpkg:"
-    # "var/lib/NetworkManager:/var/lib/NetworkManager:"
-    # "var/lib/nfs:/var/lib/nfs:"
+    "var/lib/AccountsService:/var/lib/AccountsService:"
+    "var/lib/apt:/var/lib/apt:"
+    "var/lib/dpkg:/var/lib/dpkg:"
+    "var/lib/NetworkManager:/var/lib/NetworkManager:"
+    "var/lib/nfs:/var/lib/nfs:"
     
-    # Usr datasets - uncomment as needed
+    # Usr datasets - uncomment as needed (keeping /usr and /usr/local commented)
     # "usr:/usr:"
     # "usr/local:/usr/local:"
     
     # Opt datasets - uncomment as needed
-    # "opt:/opt:"
-    # "srv:/srv:"
+    "opt:/opt:"
+    "srv:/srv:"
 )
 
 # Package Configuration
 # Additional packages to install during stage2
 ADDITIONAL_PACKAGES=(
-    # "ubuntu-minimal"
-    # "ubuntu-standard"
-    # "ubuntu-desktop"
-    # "hollywood"
-    # "sanoid"
+    "ubuntu-minimal"
+    "ubuntu-standard"
+    "ubuntu-desktop"
+    "hollywood"
+    "sanoid"
 )
 
 # Color Configuration for Script Output
