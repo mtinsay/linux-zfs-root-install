@@ -104,15 +104,7 @@ check_uefi_boot() {
 detect_existing_pools() {
     log "Detecting existing ZFS pools..."
     
-    # In auto mode, we destroy existing pools, so ignore reuse settings
-    if [[ "$PARTITION_MODE" == "auto" ]]; then
-        log "Auto mode: Ignoring REUSE_ROOT_POOL and EXISTING_ROOT_DATASET settings"
-        log "All existing ZFS pools on $DISK will be destroyed"
-        EXISTING_ROOT_POOL_FOUND="false"
-        return
-    fi
-    
-    # Import any available pools for detection (non-destructive, manual mode only)
+    # Import any available pools for detection (non-destructive)
     zpool import -a -N 2>/dev/null || true
     
     # Check for existing root pool
@@ -131,23 +123,58 @@ detect_existing_pools() {
                 EXISTING_ROOT_POOL_FOUND="false"
             fi
         fi
+        
+        # Validate existing root dataset if specified and reusing pool
+        if [[ -n "$EXISTING_ROOT_DATASET" && "$EXISTING_ROOT_POOL_FOUND" == "true" ]]; then
+            # Ensure the pool containing the dataset is imported
+            local dataset_pool="${EXISTING_ROOT_DATASET%%/*}"
+            if ! zpool list "$dataset_pool" >/dev/null 2>&1; then
+                log "Importing pool for dataset validation: $dataset_pool"
+                zpool import -N "$dataset_pool" 2>/dev/null || true
+            fi
+            
+            if ! zfs list "$EXISTING_ROOT_DATASET" >/dev/null 2>&1; then
+                error "Specified EXISTING_ROOT_DATASET '$EXISTING_ROOT_DATASET' not found"
+            fi
+            log "Found existing root dataset: $EXISTING_ROOT_DATASET"
+        fi
     else
+        # REUSE_ROOT_POOL=false: Destroy existing pool if it exists
         EXISTING_ROOT_POOL_FOUND="false"
-    fi
-    
-    # Validate existing root dataset if specified
-    if [[ -n "$EXISTING_ROOT_DATASET" ]]; then
-        # Ensure the pool containing the dataset is imported
-        local dataset_pool="${EXISTING_ROOT_DATASET%%/*}"
-        if ! zpool list "$dataset_pool" >/dev/null 2>&1; then
-            log "Importing pool for dataset validation: $dataset_pool"
-            zpool import -N "$dataset_pool" 2>/dev/null || true
+        
+        # Check if pool exists and destroy it
+        local pool_exists="false"
+        if zpool list "$POOL_NAME" >/dev/null 2>&1; then
+            log "Found existing imported pool: $POOL_NAME"
+            pool_exists="true"
+        elif zpool import -d /dev 2>/dev/null | grep -q "pool: $POOL_NAME"; then
+            log "Found existing unimported pool: $POOL_NAME"
+            pool_exists="true"
         fi
         
-        if ! zfs list "$EXISTING_ROOT_DATASET" >/dev/null 2>&1; then
-            error "Specified EXISTING_ROOT_DATASET '$EXISTING_ROOT_DATASET' not found"
+        if [[ "$pool_exists" == "true" ]]; then
+            log "REUSE_ROOT_POOL=false: Destroying existing pool '$POOL_NAME'"
+            
+            # Import pool if not already imported (needed for destruction)
+            if ! zpool list "$POOL_NAME" >/dev/null 2>&1; then
+                log "Importing pool for destruction: $POOL_NAME"
+                zpool import -f "$POOL_NAME" 2>/dev/null || true
+            fi
+            
+            # Destroy the pool
+            if zpool list "$POOL_NAME" >/dev/null 2>&1; then
+                log "Destroying pool: $POOL_NAME"
+                zpool destroy -f "$POOL_NAME" || {
+                    warn "Failed to destroy pool $POOL_NAME, attempting export..."
+                    zpool export -f "$POOL_NAME" 2>/dev/null || true
+                }
+            fi
         fi
-        log "Found existing root dataset: $EXISTING_ROOT_DATASET"
+        
+        # Ignore EXISTING_ROOT_DATASET when not reusing pool
+        if [[ -n "$EXISTING_ROOT_DATASET" ]]; then
+            log "REUSE_ROOT_POOL=false: Ignoring EXISTING_ROOT_DATASET setting"
+        fi
     fi
 }
 
@@ -171,13 +198,18 @@ validate_required_config() {
         "NETWORK_INTERFACE"
         "TIMEZONE"
         "LOCALE"
-        "SWAP_SIZE"
         "ZFS_MOUNT_METHOD"
         "RED"
         "GREEN"
         "YELLOW"
         "NC"
     )
+    
+    # SWAP_SIZE is optional - can be empty to disable swap
+    # Check if SWAP_SIZE variable exists (but allow it to be empty)
+    if ! declare -p SWAP_SIZE &>/dev/null; then
+        missing_vars+=("SWAP_SIZE")
+    fi
     
     # Check required variables
     for var in "${required_vars[@]}"; do
@@ -270,15 +302,8 @@ check_configuration() {
             error "Swap partition $SWAP_PARTITION does not exist"
         fi
         
-        # Validate that EFI and Boot partitions are on the same drive
-        local efi_drive=$(echo "$EFI_PARTITION" | sed 's/[0-9]*$//')
-        local boot_drive=$(echo "$BOOT_PARTITION" | sed 's/[0-9]*$//')
-        
-        if [[ "$efi_drive" != "$boot_drive" ]]; then
-            error "EFI partition ($EFI_PARTITION) and Boot partition ($BOOT_PARTITION) must be on the same drive"
-            error "EFI drive: $efi_drive, Boot drive: $boot_drive"
-            error "This is required for proper GRUB installation"
-        fi
+        # Validate EFI and Boot partition compatibility
+        validate_boot_efi_compatibility
         
         log "Using partitions:"
         log "  EFI: $EFI_PARTITION"
@@ -289,6 +314,84 @@ check_configuration() {
         fi
     else
         error "Invalid PARTITION_MODE: $PARTITION_MODE (must be 'auto' or 'manual')"
+    fi
+}
+
+validate_boot_efi_compatibility() {
+    log "Validating EFI and Boot partition compatibility..."
+    
+    local efi_drive=$(echo "$EFI_PARTITION" | sed 's/[0-9]*$//')
+    
+    # Check if boot partition is an mdadm RAID device
+    if [[ "$BOOT_PARTITION" =~ ^/dev/md[0-9]+$ ]]; then
+        log "Boot partition is mdadm RAID device: $BOOT_PARTITION"
+        
+        # Verify RAID device exists and is active
+        if [[ ! -b "$BOOT_PARTITION" ]]; then
+            error "RAID device $BOOT_PARTITION does not exist"
+        fi
+        
+        if ! mdadm --detail "$BOOT_PARTITION" >/dev/null 2>&1; then
+            error "RAID device $BOOT_PARTITION is not active or accessible"
+        fi
+        
+        # Get RAID level and validate it's RAID 1
+        local raid_level
+        raid_level=$(mdadm --detail "$BOOT_PARTITION" | grep "Raid Level" | awk '{print $4}')
+        
+        if [[ "$raid_level" != "raid1" ]]; then
+            error "Boot partition RAID device must be RAID 1 (mirror), found: $raid_level"
+            error "GRUB requires RAID 1 for boot partition support"
+        fi
+        
+        log "Verified RAID 1 configuration for boot partition"
+        
+        # Get active devices in the RAID array
+        local raid_devices
+        raid_devices=$(mdadm --detail "$BOOT_PARTITION" | grep -E "^\s+[0-9]+\s+[0-9]+\s+[0-9]+\s+[0-9]+\s+active sync" | awk '{print $7}')
+        
+        if [[ -z "$raid_devices" ]]; then
+            error "No active devices found in RAID array $BOOT_PARTITION"
+        fi
+        
+        log "Active RAID devices: $raid_devices"
+        
+        # Check if any RAID device is on the same drive as EFI partition
+        local efi_compatible="false"
+        for device in $raid_devices; do
+            local device_drive=$(echo "$device" | sed 's/[0-9]*$//')
+            log "Checking RAID device $device (drive: $device_drive) against EFI drive: $efi_drive"
+            
+            if [[ "$device_drive" == "$efi_drive" ]]; then
+                log "Found RAID device $device on same drive as EFI partition ($efi_drive)"
+                efi_compatible="true"
+                break
+            fi
+        done
+        
+        if [[ "$efi_compatible" != "true" ]]; then
+            error "RAID 1 boot partition requires at least one active device on the same drive as EFI partition"
+            error "EFI partition: $EFI_PARTITION (drive: $efi_drive)"
+            error "RAID devices: $raid_devices"
+            error "None of the RAID devices are on drive $efi_drive"
+            error "This is required for GRUB installation compatibility"
+        fi
+        
+        log "RAID 1 boot partition validation passed - compatible with EFI partition"
+        
+    else
+        # Standard partition validation
+        local boot_drive=$(echo "$BOOT_PARTITION" | sed 's/[0-9]*$//')
+        
+        if [[ "$efi_drive" != "$boot_drive" ]]; then
+            error "EFI partition ($EFI_PARTITION) and Boot partition ($BOOT_PARTITION) must be on the same drive"
+            error "EFI drive: $efi_drive, Boot drive: $boot_drive"
+            error "This is required for proper GRUB installation"
+            error ""
+            error "Alternative: Use mdadm RAID 1 for boot partition with one device on the EFI drive"
+        fi
+        
+        log "Standard boot partition validation passed - same drive as EFI partition"
     fi
 }
 
@@ -419,6 +522,7 @@ EOF
             SWAP_PARTITION="${DISK}3"
             ROOT_PARTITION="${DISK}4"
         else
+            log "SWAP_SIZE is 0 or empty - swap partition disabled"
             log "Creating partitions with EFI, boot, and root partitions (UEFI only)"
             sfdisk $DISK << EOF
 label: gpt
@@ -449,36 +553,8 @@ EOF
 
 create_zfs_pools() {
     # Create or reuse root pool only (boot will use ext4)
-    if [[ "$PARTITION_MODE" == "auto" ]]; then
-        # Auto mode: Always create new pool (existing pools were already destroyed)
-        log "Creating new root pool: $POOL_NAME (auto mode)"
-        
-        zpool create -f \
-            -o ashift=12 \
-            -o autotrim=on \
-            -O acltype=posixacl \
-            -O canmount=off \
-            -O compression=zstd \
-            -O devices=off \
-            -O dnodesize=auto \
-            -O normalization=formD \
-            -O relatime=on \
-            -O sync=standard \
-            -O xattr=sa \
-            -O mountpoint=/ \
-            -R $INSTALL_ROOT \
-            $POOL_NAME $ROOT_PARTITION
-        
-        # Set cache file for the new pool
-        log "Setting ZFS cache file for pool $POOL_NAME..."
-        zpool set cachefile=/etc/zfs/zpool.cache $POOL_NAME
-        
-        # Export and re-import pool to ensure clean state
-        log "Exporting and re-importing pool $POOL_NAME for clean state..."
-        zpool export $POOL_NAME
-        zpool import -f -R $INSTALL_ROOT $POOL_NAME
-    elif [[ "$EXISTING_ROOT_POOL_FOUND" == "true" ]]; then
-        # Manual mode: Reuse existing pool
+    if [[ "$EXISTING_ROOT_POOL_FOUND" == "true" ]]; then
+        # Reuse existing pool
         log "Reusing existing root pool: $POOL_NAME"
         
         # Check if pool is already imported
@@ -496,33 +572,9 @@ create_zfs_pools() {
         log "Setting ZFS cache file for reused pool $POOL_NAME..."
         zpool set cachefile=/etc/zfs/zpool.cache $POOL_NAME
     else
-        # Manual mode: Create new pool with existence checks
-        log "Creating new root pool: $POOL_NAME (manual mode)"
+        # Create new pool (existing pool was already destroyed if needed)
+        log "Creating new root pool: $POOL_NAME"
         
-        # Check if pool exists but is not imported (could happen if previous run failed)
-        if zpool import -d /dev 2>/dev/null | grep -q "pool: $POOL_NAME"; then
-            warn "Found existing pool $POOL_NAME that is not imported"
-            read -p "Import existing pool instead of creating new one? (yes/no): " import_existing
-            if [[ "$import_existing" == "yes" ]]; then
-                log "Importing existing pool: $POOL_NAME"
-                if zpool import -f -R $INSTALL_ROOT "$POOL_NAME"; then
-                    log "Successfully imported existing pool"
-                    return
-                else
-                    error "Failed to import existing pool: $POOL_NAME"
-                fi
-            else
-                warn "Creating a new pool will DESTROY the existing pool '$POOL_NAME' and ALL DATA in it!"
-                warn "This action cannot be undone."
-                read -p "Are you absolutely sure you want to proceed and lose all data? (yes/no): " confirm_destroy
-                if [[ "$confirm_destroy" != "yes" ]]; then
-                    error "Pool creation cancelled. Please import the existing pool or choose a different pool name."
-                fi
-                log "User confirmed destruction of existing pool - proceeding with new pool creation"
-            fi
-        fi
-        
-        # Create new pool
         zpool create -f \
             -o ashift=12 \
             -o autotrim=on \
@@ -836,7 +888,7 @@ format_boot() {
     if [[ "$PARTITION_MODE" == "auto" ]]; then
         mkfs.ext4 -F -F -L boot $BOOT_PARTITION
     else
-        mkfs.ext4 -L boot $BOOT_PARTITION
+        mkfs.ext4 -F -F -L boot $BOOT_PARTITION
     fi
     mkdir -p $INSTALL_ROOT/boot
     mount -v $BOOT_PARTITION $INSTALL_ROOT/boot
@@ -850,6 +902,8 @@ format_swap() {
         else
             mkswap $SWAP_PARTITION
         fi
+    else
+        log "No swap partition configured - skipping swap formatting"
     fi
 }
 
@@ -875,11 +929,20 @@ ff02::1 ip6-allnodes
 ff02::2 ip6-allrouters
 EOF
     
-    # Copy existing network configuration
+    # Copy network configuration
     log "Copying network configuration..."
-    if [[ -d "/etc/netplan" ]]; then
-        mkdir -p $INSTALL_ROOT/etc/netplan
+    mkdir -p $INSTALL_ROOT/etc/netplan
+    
+    if [[ -n "$NETPLAN_FILE" ]]; then
+        # Use custom netplan file
+        log "Using custom netplan file: $NETPLAN_FILE"
+        cp "$NETPLAN_FILE" "$INSTALL_ROOT/etc/netplan/"
+    elif [[ -d "/etc/netplan" ]]; then
+        # Copy existing netplan configuration
+        log "Copying existing netplan configuration from /etc/netplan"
         cp -r /etc/netplan/* $INSTALL_ROOT/etc/netplan/ 2>/dev/null || true
+    else
+        log "No netplan configuration found, using default network setup"
     fi
     
     # Configure APT sources
@@ -968,6 +1031,7 @@ main() {
     local skip_confirmation="false"
     local ssh_param_used="false"
     local ssh_param_value=""
+    local NETPLAN_FILE=""
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -1017,19 +1081,43 @@ main() {
                 ssh_param_value="--nossh"
                 shift
                 ;;
+            --yaml)
+                if [[ -n "$2" && "$2" != -* ]]; then
+                    NETPLAN_FILE="$2"
+                    shift 2
+                else
+                    echo "Error: --yaml requires a filename argument"
+                    exit 1
+                fi
+                ;;
             *)
                 echo "Unknown parameter: $1"
-                echo "Usage: $0 [-y|--yes] [-D|--debug] [-h|--hostname HOSTNAME] [-d|--disk DEVICE] [--ssh|--nossh]"
+                echo "Usage: $0 [-y|--yes] [-D|--debug] [-h|--hostname HOSTNAME] [-d|--disk DEVICE] [--ssh|--nossh] [--yaml FILENAME]"
                 echo "  -y, --yes              Skip confirmation prompts in auto mode"
                 echo "  -D, --debug            Enable debug mode (pause before chroot)"
                 echo "  -h, --hostname HOSTNAME Override hostname from config"
                 echo "  -d, --disk DEVICE      Override disk device from config"
                 echo "  --ssh                  Force SSH installation (overrides config)"
                 echo "  --nossh                Skip SSH installation (overrides config)"
+                echo "  --yaml FILENAME        Use custom netplan YAML file instead of default"
                 exit 1
                 ;;
         esac
     done
+    
+    # Validate netplan file if provided
+    if [[ -n "$NETPLAN_FILE" ]]; then
+        if [[ ! -f "$NETPLAN_FILE" ]]; then
+            error "Netplan file does not exist: $NETPLAN_FILE"
+        fi
+        
+        # Check if file has .yaml or .yml extension
+        if [[ ! "$NETPLAN_FILE" =~ \.(yaml|yml)$ ]]; then
+            warn "Netplan file should have .yaml or .yml extension: $NETPLAN_FILE"
+        fi
+        
+        log "Using custom netplan file: $NETPLAN_FILE"
+    fi
     
     # Enable debug tracing if DEBUG is true (from config or command line)
     if [[ "${DEBUG:-false}" == "true" ]]; then

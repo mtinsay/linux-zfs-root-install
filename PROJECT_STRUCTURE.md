@@ -14,11 +14,17 @@ zfs-root-install/
 ├── 📄 PROJECT_STRUCTURE.md         # This file
 ├── 📄 .gitignore                   # Git ignore rules
 │
-├── 🔧 Installation Scripts
+├── 🔧 Ubuntu Installation Scripts
 │   ├── ubuntu-stage1.sh            # Stage 1: Disk preparation and base system
 │   ├── ubuntu-stage2.sh            # Stage 2: System configuration (chroot)
 │   ├── ubuntu-stage3.sh            # Stage 3: Cleanup and finalization
 │   └── ubuntu-config.sh            # Configuration file template
+│
+├── ❄️ NixOS Installation Scripts
+│   ├── nixos-stage1.sh             # Stage 1: Disk preparation and config generation
+│   ├── nixos-stage2.sh             # Stage 2: NixOS installation
+│   ├── nixos-stage3.sh             # Stage 3: Cleanup and finalization
+│   └── nixos-config.sh             # Configuration file template
 │
 ├── 📚 Documentation
 │   ├── DESIGN.md                   # Architecture and design documentation
@@ -40,6 +46,8 @@ zfs-root-install/
 ```
 
 ## 🔧 Core Installation Scripts
+
+## 🟠 Ubuntu Scripts
 
 ### ubuntu-stage1.sh
 **Purpose**: Disk preparation and base system installation
@@ -91,6 +99,57 @@ zfs-root-install/
 - User account definitions
 - Package selection
 - Installation options
+
+## ❄️ NixOS Scripts
+
+### nixos-stage1.sh
+**Purpose**: Disk preparation and NixOS configuration generation
+- Disk partitioning (auto/manual modes)
+- ZFS pool creation and management
+- NixOS configuration.nix generation
+- Hardware configuration generation
+- Stage 2 execution coordination
+
+**Key Functions**:
+- `validate_config()` - Configuration validation
+- `partition_disk()` - Disk partitioning
+- `create_zfs_pool()` - ZFS pool creation
+- `generate_nixos_config()` - NixOS configuration generation
+
+### nixos-stage2.sh
+**Purpose**: NixOS installation and system configuration
+- NixOS channel setup
+- System installation with nixos-install
+- ZFS configuration and services
+- Final system configuration
+
+**Key Functions**:
+- `setup_channels()` - NixOS channel configuration
+- `install_nixos()` - System installation
+- `configure_zfs()` - ZFS service setup
+- `final_configuration()` - System finalization
+
+### nixos-stage3.sh
+**Purpose**: Cleanup and system finalization
+- Filesystem unmounting
+- ZFS pool export
+- Process cleanup
+- Installation verification
+
+**Key Functions**:
+- `unmount_filesystems()` - Filesystem unmounting
+- `export_zfs_pools()` - ZFS pool export
+- `aggressive_cleanup()` - Process termination
+- `verify_cleanup()` - Final verification
+
+### nixos-config.sh
+**Purpose**: Centralized NixOS configuration management
+- System settings (hostname, timezone, locale)
+- Disk and partition configuration
+- ZFS pool and dataset settings
+- User account definitions
+- NixOS packages and services
+- Desktop environment selection
 
 ## 📚 Documentation Files
 

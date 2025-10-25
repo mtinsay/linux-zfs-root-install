@@ -39,17 +39,28 @@ Licensed under the GNU General Public License v3.0
 
 This project demonstrates AI-human collaborative development but should be treated as experimental code requiring human validation before production use.
 
+## 🐧 Supported Distributions
+
+This project provides ZFS root installation scripts for multiple Linux distributions:
+
+- **� Uubuntu**: Complete automation for Ubuntu 22.04/24.04 with debootstrap
+- **❄️ NixOS**: Declarative configuration with NixOS package management
+
 ## ✨ Features
 
 - **🔧 Automated Installation**: Complete unattended ZFS root installation
 - **⚙️ Flexible Configuration**: Extensive customization via configuration file
 - **💾 Dual Partitioning Modes**: Support for both automatic and manual partitioning
-- **🗄️ ZFS Pool Management**: Creation, reuse, and proper cache file handling
-- **🔐 SSH Control**: Independent SSH installation control with parameter overrides
+- **🗄️ ZFS Pool Management**: Creation, reuse, and proper cache file handling with forced recreation
+- **🔐 SSH Control**: Independent SSH installation control with parameter overrides (Ubuntu)
 - **🐛 Debug Framework**: Targeted debug breaks for troubleshooting
 - **🧹 Intelligent Cleanup**: Conditional aggressive cleanup based on actual failures
+- **📦 Multi-Distribution**: Separate script sets for Ubuntu and NixOS
 - **📁 Enhanced Chroot**: Flexible bind mounting with recursive submount discovery
-- **✅ Smart Validation**: Configuration validation distinguishing missing vs empty arrays
+- **✅ Smart Validation**: Configuration validation with flexible swap configuration
+- **🔄 RAID Support**: mdadm RAID 1 boot partition support with bootloader redundancy
+- **🌐 Network Customization**: Custom netplan YAML configuration support (Ubuntu)
+- **💿 Swap Flexibility**: Optional swap with SWAP_SIZE=0 support
 - **🔄 Cross-Stage Integration**: Proper parameter and error handling across all stages
 
 ## 📋 Table of Contents
@@ -65,25 +76,85 @@ This project demonstrates AI-human collaborative development but should be treat
 
 ## 🚀 Quick Start
 
+### Ubuntu Installation
+
 ```bash
 # 1. Download the scripts
-git clone https://github.com/username/ubuntu-zfs-root.git
-cd ubuntu-zfs-root
+git clone https://github.com/mtinsay/linux-zfs-root-install.git
+cd linux-zfs-root-install
 
 # 2. Configure your installation
-cp ubuntu-config.sh ubuntu-config-local.sh
-nano ubuntu-config-local.sh  # Edit configuration
+nano ubuntu-config.sh  # Edit configuration
 
 # 3. Run the installation
-sudo ./ubuntu-stage1.sh
+sudo ./ubuntu-stage1.sh -y
+```
+
+### NixOS Installation
+
+```bash
+# 1. Download the scripts
+git clone https://github.com/mtinsay/linux-zfs-root-install.git
+cd linux-zfs-root-install
+
+# 2. Configure your installation
+nano nixos-config.sh  # Edit configuration
+
+# 3. Run the installation
+sudo ./nixos-stage1.sh -y
 ```
 
 ## ⚠️ WARNING
 These scripts will **DESTROY ALL DATA** on the target disk. Use only on systems where you can afford to lose all data.
 
+## 🔧 Command Line Options
+
+### Ubuntu Installation Options
+
+```bash
+sudo ./ubuntu-stage1.sh [OPTIONS]
+
+Options:
+  -y, --yes              Skip confirmation prompts in auto mode
+  -D, --debug            Enable debug mode (pause before chroot)
+  -h, --hostname NAME    Override hostname from config
+  -d, --disk DEVICE      Override disk device from config
+  --ssh                  Force SSH installation (overrides config)
+  --nossh                Skip SSH installation (overrides config)
+  --yaml FILENAME        Use custom netplan YAML file instead of default
+
+Examples:
+  sudo ./ubuntu-stage1.sh -y --yaml ./custom-network.yaml
+  sudo ./ubuntu-stage1.sh --hostname myserver --nossh
+  sudo ./ubuntu-stage1.sh -D --disk /dev/nvme0n1
+```
+
+### NixOS Installation Options
+
+```bash
+sudo ./nixos-stage1.sh [OPTIONS]
+
+Options:
+  -y, --yes              Skip confirmation prompts in auto mode
+  -D, --debug            Enable debug mode
+  -h, --help             Show help message
+
+Examples:
+  sudo ./nixos-stage1.sh -y
+  sudo ./nixos-stage1.sh --debug
+```
+
 ## Prerequisites
 
-- Ubuntu 22.04 Live USB/CD
+### Ubuntu Installation
+- Ubuntu 22.04/24.04 Live USB/CD
+- Target system booted from live media
+- Internet connection
+- At least 8GB RAM recommended
+- UEFI system (Legacy BIOS not supported)
+
+### NixOS Installation
+- NixOS Live USB/CD (24.05 or later)
 - Target system booted from live media
 - Internet connection
 - At least 8GB RAM recommended

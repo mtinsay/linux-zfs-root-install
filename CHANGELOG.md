@@ -13,11 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2025-10-23
 
 ### Added
-- Complete ZFS root filesystem installation automation
+- Complete ZFS root filesystem installation automation for Ubuntu and NixOS
 - Three-stage installation process (preparation, configuration, cleanup)
 - Flexible partitioning modes (auto and manual)
 - Comprehensive ZFS dataset management with configurable layouts
-- SSH installation control with command-line overrides
+- SSH installation control with command-line overrides (Ubuntu)
 - Advanced debug framework with targeted debug breaks
 - Intelligent cleanup architecture with conditional aggressive cleanup
 - Enhanced chroot environment setup with flexible bind mounting
@@ -27,7 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recursive unmounting with lazy unmount support
 - Package management optimization with minimal defaults
 - User management with configurable groups and passwords
-- GRUB configuration with performance optimizations
+- GRUB configuration with performance optimizations (Ubuntu)
+- NixOS declarative configuration generation with ZFS support
+- Multi-distribution architecture with Ubuntu and NixOS support
+- mdadm RAID 1 boot partition support with bootloader redundancy
+- Custom netplan YAML configuration support (Ubuntu)
+- Flexible swap management with SWAP_SIZE=0 support
+- Enhanced ZFS pool management with forced recreation option
+- Comprehensive command-line parameter support
+- AI-generated codebase with comprehensive documentation
+- GPLv3 licensing with proper copyright attribution
 - System upgrade integration with package minimization
 
 ### Features

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# ZFS Root Installation Scripts - Configuration (v0.1)
+# ZFS Root Installation Scripts - NixOS Configuration (v0.1)
 # Copyright (C) 2025 Michael C. Tinsay
 # 
 # This program is free software: you can redistribute it and/or modify
@@ -43,55 +43,51 @@ EFI_PARTITION=""        # e.g., "/dev/sda1" - EFI System Partition (required)
 #   2. RAID 1 boot with one device on EFI drive: EFI=/dev/sda1, BOOT=/dev/md0 (where md0 includes /dev/sda3)
 BOOT_PARTITION=""       # e.g., "/dev/sda2" or "/dev/md0" - Boot partition (ext4 or RAID 1, required)
 ROOT_PARTITION=""       # e.g., "/dev/sda3" - Root pool partition (required)
-SWAP_PARTITION=""       # e.g., "/dev/sda4" - Swap partition (optional, leave empty to use ZFS swap)
+SWAP_PARTITION=""       # e.g., "/dev/sda4" - Swap partition (optional, leave empty to disable swap)
 
 # System configuration
-HOSTNAME="multiboot-zfsroot"
+HOSTNAME="nixos-zfsroot"
 
 # User Configuration
-# Format: "username:groups:password" where groups are comma-separated
+# Format: "username:groups:password:description" where groups are comma-separated
 # Leave groups empty for no additional groups beyond the default user group
 # Leave password empty to set manually during installation
 # Common groups:
-#   - sudo: Administrative privileges
-#   - adm: System monitoring logs
-#   - cdrom: CD-ROM access
-#   - dip: Dial-up networking
-#   - lpadmin: Printer administration
-#   - lxd: LXD container management
-#   - plugdev: Pluggable device access
-#   - sambashare: Samba file sharing
+#   - wheel: Administrative privileges (sudo equivalent)
+#   - networkmanager: Network management
+#   - audio: Audio device access
+#   - video: Video device access
+#   - docker: Docker container management
+#   - libvirtd: Virtualization management
 # 
 # Examples:
-#   "admin:sudo:secretpass" - Admin user with sudo privileges and preset password
-#   "user:adm,cdrom,sudo:" - User with multiple groups, password set manually
-#   "guest::" - Guest user with no additional groups, password set manually
+#   "admin:wheel:secretpass:System Administrator" - Admin user with wheel privileges
+#   "user:audio,video,wheel::Regular User" - User with multiple groups, password set manually
+#   "guest:::Guest User" - Guest user with no additional groups
 USERS=(
-    "localadmin:adm,cdrom,dip,lpadmin,lxd,plugdev,sambashare,sudo:"
-    # "admin:sudo:adminpass123"
-    # "guest::"
+    "localadmin:wheel,networkmanager,audio,video::Local Administrator"
+    # "admin:wheel:adminpass123:System Administrator"
+    # "guest:::Guest User"
 )
 
 # Installation configuration
-DEBOOTSTRAP_SUITE="noble"   # Ubuntu release codename (noble=24.04, jammy=22.04, focal=20.04, etc.)
-INSTALL_ROOT="/mnt"         # Root mountpoint for installation
-AUTO_RUN_STAGE2="true"      # Automatically run stage2 after stage1 completes
-DEBUG="false"               # Set to "true" to pause before executing chroot for debugging
-CACHE_DIR="/var/cache/apt/archives"  # Cache directory for debootstrap and package downloads
-INSTALL_SSH="true"          # Install OpenSSH server (can be overridden with --ssh/--nossh)
+NIXOS_CHANNEL="nixos-24.05"    # NixOS channel (nixos-24.05, nixos-unstable, etc.)
+INSTALL_ROOT="/mnt"            # Root mountpoint for installation
+AUTO_RUN_STAGE2="true"         # Automatically run stage2 after stage1 completes
+DEBUG="false"                  # Set to "true" to pause before executing nixos-install for debugging
 
 # ZFS configuration
 POOL_NAME="zpool"
-ROOT_DATASET_NAME="Ubuntu"    # Top-level root dataset name (e.g., "ROOT", "SYSTEM", "OS")
-                           # All datasets will be created under this: rpool/ROOT/home, rpool/ROOT/var, etc.
+ROOT_DATASET_NAME="NixOS"      # Top-level root dataset name (e.g., "ROOT", "SYSTEM", "OS")
+                               # All datasets will be created under this: rpool/NixOS/home, rpool/NixOS/var, etc.
 
 # ZFS pool reuse options
 # Set to "true" to reuse existing ZFS pools instead of creating new ones
-REUSE_ROOT_POOL="true"     # Reuse existing root pool (must match POOL_NAME)
+REUSE_ROOT_POOL="true"         # Reuse existing root pool (must match POOL_NAME)
 
 # When reusing pools, specify the dataset to use as root filesystem
 # Leave empty to create new $ROOT_DATASET_NAME dataset as root
-EXISTING_ROOT_DATASET=$POOL_NAME/$ROOT_DATASET_NAME    # e.g., "zpool/mint" - existing dataset to reuse
+EXISTING_ROOT_DATASET=$POOL_NAME/$ROOT_DATASET_NAME    # e.g., "zpool/NixOS" - existing dataset to reuse
 
 # Network interface (adjust if needed)
 NETWORK_INTERFACE="enp1s0"
@@ -107,12 +103,6 @@ LOCALE="en_PH.UTF-8"
 # In manual mode: Use SWAP_PARTITION to specify existing swap partition
 SWAP_SIZE="4G"
 
-# ZFS Mount Configuration
-# How to mount ZFS datasets at boot: "zfs" or "fstab"
-# zfs: Use ZFS native mounting (zfs mount -a)
-# fstab: Use /etc/fstab entries for mounting
-ZFS_MOUNT_METHOD="fstab"
-
 # ZFS Dataset Configuration
 # Format: "dataset_name:mountpoint:options" (options are optional)
 # All datasets will be created under $POOL_NAME/$ROOT_DATASET_NAME/
@@ -120,60 +110,64 @@ ZFS_MOUNT_METHOD="fstab"
 #
 # NOTE: All datasets are automatically created with mountpoint=legacy
 # Any mountpoint= options in the configuration will be ignored
-#
-# The following datasets are commented out by default for a minimal installation.
-# Uncomment any datasets you want to create at your discretion.
 
 ZFS_DATASETS=(
     # Home datasets
     "home:/home:"
     "home/root:/root:"
     
-    # Var datasets (organized by hierarchy) - uncomment as needed
+    # Var datasets (organized by hierarchy)
     "var:/var:"
-    
-    # Level 1: Direct /var subdirectories (alphabetical) - uncomment as needed
     "var/cache:/var/cache:"
-    "var/games:/var/games:"
     "var/lib:/var/lib:"
     "var/log:/var/log:"
-    "var/mail:/var/mail:"
-    "var/snap:/var/snap:"
-    "var/spool:/var/spool:"
     "var/tmp:/var/tmp:"
-    "var/www:/var/www:"
     
-    # Level 2: /var/lib subdirectories (alphabetical) - uncomment as needed
-    "var/lib/AccountsService:/var/lib/AccountsService:"
-    "var/lib/apt:/var/lib/apt:"
-    "var/lib/dpkg:/var/lib/dpkg:"
-    "var/lib/NetworkManager:/var/lib/NetworkManager:"
-    "var/lib/nfs:/var/lib/nfs:"
+    # Nix store datasets
+    "nix:/nix:"
+    "nix/store:/nix/store:"
+    "nix/var:/nix/var:"
     
-    # Usr datasets - uncomment as needed (keeping /usr and /usr/local commented)
-    # "usr:/usr:"
-    # "usr/local:/usr/local:"
-    
-    # Opt datasets - uncomment as needed
+    # Opt datasets
     "opt:/opt:"
     "srv:/srv:"
+    "tmp:/tmp:"
 )
 
-# Package Configuration
-# Additional packages to install during stage2
-ADDITIONAL_PACKAGES=(
-    "ubuntu-minimal"
-    "ubuntu-standard"
-    "ubuntu-desktop"
-    "hollywood"
-    "sanoid"
+# NixOS Configuration
+# Additional packages to include in the system configuration
+SYSTEM_PACKAGES=(
+    "vim"
+    "git"
+    "curl"
+    "wget"
+    "htop"
+    "tree"
+    "firefox"
+    "zfs"
 )
+
+# Services to enable
+SYSTEM_SERVICES=(
+    "openssh"
+    "networkmanager"
+    "zfs.autoScrub"
+    "zfs.autoSnapshot"
+)
+
+# Desktop Environment (leave empty for minimal installation)
+# Options: "gnome", "kde", "xfce", "i3", "sway", ""
+DESKTOP_ENVIRONMENT=""
+
+# Boot loader configuration
+BOOTLOADER_TIMEOUT="5"         # GRUB timeout in seconds
+ENABLE_MEMTEST="true"          # Enable memtest86+ in GRUB menu
+
+# Hardware configuration
+ENABLE_MICROCODE_UPDATES="true"  # Enable CPU microcode updates
+ENABLE_FIRMWARE_UPDATES="true"   # Enable firmware updates
 
 # Color Configuration for Script Output
-# Recommended combinations:
-# - Default: RED='\033[0;31m' GREEN='\033[0;32m' YELLOW='\033[1;33m'
-# - High contrast: RED='\033[1;31m' GREEN='\033[1;32m' YELLOW='\033[1;33m'
-# - Subtle: RED='\033[0;91m' GREEN='\033[0;92m' YELLOW='\033[0;93m'
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

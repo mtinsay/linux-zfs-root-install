@@ -263,6 +263,62 @@ install_grub() {
 
     log "Installing GRUB to EFI directory"
     grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ubuntu --recheck --no-floppy
+    
+    # Additional GRUB installation for RAID boot partitions
+    install_grub_for_raid
+}
+
+install_grub_for_raid() {
+    # Check if boot partition is an mdadm RAID device
+    if [[ "$BOOT_PARTITION" =~ ^/dev/md[0-9]+$ ]]; then
+        log "Configuring GRUB for RAID 1 boot partition: $BOOT_PARTITION"
+        
+        # Get active devices in the RAID array
+        local raid_devices
+        raid_devices=$(mdadm --detail "$BOOT_PARTITION" | grep -E "^\s+[0-9]+\s+[0-9]+\s+[0-9]+\s+[0-9]+\s+active sync" | awk '{print $7}')
+        
+        if [[ -z "$raid_devices" ]]; then
+            warn "No active devices found in RAID array $BOOT_PARTITION"
+            return
+        fi
+        
+        log "Installing GRUB to RAID member drives for redundancy..."
+        
+        # Install GRUB to each active RAID member drive
+        for device in $raid_devices; do
+            local device_drive=$(echo "$device" | sed 's/[0-9]*$//')
+            log "Installing GRUB to drive: $device_drive (member: $device)"
+            
+            # Install GRUB to the drive (not the partition)
+            if grub-install --target=i386-pc --boot-directory=/boot "$device_drive"; then
+                log "Successfully installed GRUB to $device_drive"
+            else
+                warn "Failed to install GRUB to $device_drive - RAID redundancy may be compromised"
+            fi
+        done
+        
+        # Update GRUB configuration to handle RAID
+        log "Updating GRUB configuration for RAID support..."
+        
+        # Ensure mdadm is available in initramfs
+        if ! grep -q "^MODULES.*raid1" /etc/initramfs-tools/modules; then
+            echo "raid1" >> /etc/initramfs-tools/modules
+            log "Added raid1 module to initramfs"
+        fi
+        
+        if ! grep -q "^MODULES.*md_mod" /etc/initramfs-tools/modules; then
+            echo "md_mod" >> /etc/initramfs-tools/modules
+            log "Added md_mod module to initramfs"
+        fi
+        
+        # Update initramfs to include RAID modules
+        log "Updating initramfs with RAID modules..."
+        update-initramfs -u
+        
+        log "GRUB RAID configuration completed"
+    else
+        log "Boot partition is not RAID - skipping RAID-specific GRUB configuration"
+    fi
 }
 
 configure_zfs() {
