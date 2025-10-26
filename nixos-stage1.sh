@@ -637,7 +637,7 @@ EOF
     cat >> "$INSTALL_ROOT/etc/nixos/configuration.nix" << EOF
 
   # System state version
-  system.stateVersion = "24.05";
+  system.stateVersion = "25.05";
 }
 EOF
 
@@ -647,6 +647,7 @@ EOF
 # Main installation function
 main() {
     local auto_confirm="false"
+    local partition_mode_set=""
     
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
@@ -659,11 +660,31 @@ main() {
                 DEBUG="true"
                 shift
                 ;;
+            --auto)
+                if [[ "$PARTITION_MODE" == "manual" && -n "$partition_mode_set" ]]; then
+                    error "Error: --auto and --manual cannot be used together"
+                    exit 1
+                fi
+                PARTITION_MODE="auto"
+                partition_mode_set="true"
+                shift
+                ;;
+            --manual)
+                if [[ "$PARTITION_MODE" == "auto" && -n "$partition_mode_set" ]]; then
+                    error "Error: --auto and --manual cannot be used together"
+                    exit 1
+                fi
+                PARTITION_MODE="manual"
+                partition_mode_set="true"
+                shift
+                ;;
             -h|--help)
                 echo "Usage: $0 [OPTIONS]"
                 echo "Options:"
                 echo "  -y, --yes     Auto-confirm destructive operations"
                 echo "  -D, --debug   Enable debug mode"
+                echo "  --auto        Use automatic partitioning (overrides config)"
+                echo "  --manual      Use manual partitioning (overrides config)"
                 echo "  -h, --help    Show this help message"
                 exit 0
                 ;;

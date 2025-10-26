@@ -119,14 +119,16 @@ Options:
   -D, --debug            Enable debug mode (pause before chroot)
   -h, --hostname NAME    Override hostname from config
   -d, --disk DEVICE      Override disk device from config
+  --auto                 Use automatic partitioning (overrides config)
+  --manual               Use manual partitioning (overrides config, default)
   --ssh                  Force SSH installation (overrides config)
   --nossh                Skip SSH installation (overrides config)
   --yaml FILENAME        Use custom netplan YAML file instead of default
 
 Examples:
-  sudo ./ubuntu-stage1.sh -y --yaml ./custom-network.yaml
+  sudo ./ubuntu-stage1.sh --auto -y --disk /dev/nvme0n1
+  sudo ./ubuntu-stage1.sh --manual --yaml ./custom-network.yaml
   sudo ./ubuntu-stage1.sh --hostname myserver --nossh
-  sudo ./ubuntu-stage1.sh -D --disk /dev/nvme0n1
 ```
 
 ### NixOS Installation Options
@@ -137,11 +139,13 @@ sudo ./nixos-stage1.sh [OPTIONS]
 Options:
   -y, --yes              Skip confirmation prompts in auto mode
   -D, --debug            Enable debug mode
+  --auto                 Use automatic partitioning (overrides config)
+  --manual               Use manual partitioning (overrides config, default)
   -h, --help             Show help message
 
 Examples:
-  sudo ./nixos-stage1.sh -y
-  sudo ./nixos-stage1.sh --debug
+  sudo ./nixos-stage1.sh --auto -y
+  sudo ./nixos-stage1.sh --manual --debug
 ```
 
 ## Prerequisites

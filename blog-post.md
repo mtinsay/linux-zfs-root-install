@@ -4238,3 +4238,62 @@ The success of this project points to a future where infrastructure automation i
 **Ready to Experience the Future?** The complete ZFS root installation system is available with comprehensive documentation, multi-distribution support, and enterprise-grade features. Configure your installation and run the automated deployment to witness the power of AI-human collaborative development in action.
 
 This project proves that the future of infrastructure automation lies not in replacing human developers, but in augmenting human capabilities with AI assistance to create better, more reliable, and more maintainable systems than traditional development approaches can achieve.
+### Saf
+ety and Usability Enhancements
+
+**Default Mode Safety Improvement**:
+As the system matured, we implemented a crucial safety enhancement by changing the default partitioning mode from automatic to manual:
+
+```bash
+# Configuration Default Change
+PARTITION_MODE="manual"  # Changed from "auto" for safety
+
+# Command Line Override Options
+sudo ./ubuntu-stage1.sh --auto -y    # Explicit destructive mode
+sudo ./ubuntu-stage1.sh --manual     # Safe default mode
+```
+
+**Safety Benefits**:
+- **Prevents Accidental Data Loss**: Manual mode requires explicit partition specification
+- **Explicit Destructive Operations**: Users must consciously choose --auto for disk destruction
+- **Configuration Safety**: Default config files no longer risk data loss
+- **Clear Intent**: Command-line parameters make user intentions explicit
+
+**Enhanced Command Line Interface**:
+Both Ubuntu and NixOS scripts now support comprehensive partitioning control:
+
+```bash
+# Ubuntu Enhanced Options
+sudo ./ubuntu-stage1.sh [--auto|--manual] [--yaml network.yaml] [--ssh|--nossh]
+
+# NixOS Enhanced Options  
+sudo ./nixos-stage1.sh [--auto|--manual] [-y|--yes] [--debug]
+
+# Conflict Prevention
+sudo ./ubuntu-stage1.sh --auto --manual  # ERROR: Cannot use both
+```
+
+**Usability Improvements**:
+- **Conflict Detection**: Prevents contradictory parameter combinations
+- **Clear Error Messages**: Explicit feedback for parameter conflicts
+- **Comprehensive Help**: Updated usage information for all parameters
+- **Consistent Interface**: Same parameter behavior across distributions
+
+### Version Updates and Modernization
+
+**NixOS Channel Modernization**:
+Updated NixOS support to target the latest stable release:
+
+```bash
+# Updated Configuration
+NIXOS_CHANNEL="nixos-25.05"    # Updated from 24.05
+system.stateVersion = "25.05"  # Matching state version
+```
+
+**Benefits of Latest NixOS**:
+- **Latest Features**: Access to newest NixOS capabilities and improvements
+- **Security Updates**: Most recent security patches and fixes
+- **Package Updates**: Latest versions of system packages and tools
+- **Hardware Support**: Enhanced support for modern hardware configurations
+
+This evolution demonstrates the continued refinement of the AI-generated system, with safety and usability improvements that make the installation process both more secure and more user-friendly while maintaining the comprehensive automation capabilities that define the project.

@@ -27,7 +27,7 @@
 # Partitioning mode: "auto" or "manual"
 # auto: Script will partition DISK automatically (destroys all data)
 # manual: Use existing partitions specified below
-PARTITION_MODE="auto"
+PARTITION_MODE="manual"
 
 # Auto partitioning configuration (used when PARTITION_MODE="auto")
 DISK="/dev/sda"  # WARNING: All data on this disk will be destroyed!
@@ -71,7 +71,7 @@ USERS=(
 )
 
 # Installation configuration
-NIXOS_CHANNEL="nixos-24.05"    # NixOS channel (nixos-24.05, nixos-unstable, etc.)
+NIXOS_CHANNEL="nixos-25.05"    # NixOS channel (nixos-25.05, nixos-unstable, etc.)
 INSTALL_ROOT="/mnt"            # Root mountpoint for installation
 AUTO_RUN_STAGE2="true"         # Automatically run stage2 after stage1 completes
 DEBUG="false"                  # Set to "true" to pause before executing nixos-install for debugging

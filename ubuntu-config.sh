@@ -27,7 +27,7 @@
 # Partitioning mode: "auto" or "manual"
 # auto: Script will partition DISK automatically (destroys all data)
 # manual: Use existing partitions specified below
-PARTITION_MODE="auto"
+PARTITION_MODE="manual"
 
 # Auto partitioning configuration (used when PARTITION_MODE="auto")
 DISK="/dev/sda"  # WARNING: All data on this disk will be destroyed!

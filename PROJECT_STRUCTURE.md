@@ -51,7 +51,7 @@ zfs-root-install/
 
 ### ubuntu-stage1.sh
 **Purpose**: Disk preparation and base system installation
-- Disk partitioning (auto/manual modes)
+- Disk partitioning (manual default, auto via --auto parameter)
 - ZFS pool creation and management
 - Base system installation with debootstrap
 - Chroot environment setup
@@ -104,7 +104,7 @@ zfs-root-install/
 
 ### nixos-stage1.sh
 **Purpose**: Disk preparation and NixOS configuration generation
-- Disk partitioning (auto/manual modes)
+- Disk partitioning (manual default, auto via --auto parameter)
 - ZFS pool creation and management
 - NixOS configuration.nix generation
 - Hardware configuration generation

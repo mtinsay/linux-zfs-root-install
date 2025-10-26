@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Complete ZFS root filesystem installation automation for Ubuntu and NixOS
 - Three-stage installation process (preparation, configuration, cleanup)
-- Flexible partitioning modes (auto and manual)
+- Flexible partitioning modes (auto and manual) with manual as default
+- Command-line partitioning mode overrides (--auto, --manual)
 - Comprehensive ZFS dataset management with configurable layouts
 - SSH installation control with command-line overrides (Ubuntu)
 - Advanced debug framework with targeted debug breaks
@@ -37,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive command-line parameter support
 - AI-generated codebase with comprehensive documentation
 - GPLv3 licensing with proper copyright attribution
+- NixOS 25.05 channel support with updated system state version
+- Safety-first approach with manual partitioning as default mode
 - System upgrade integration with package minimization
 
 ### Features

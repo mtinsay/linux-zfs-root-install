@@ -1032,6 +1032,7 @@ main() {
     local ssh_param_used="false"
     local ssh_param_value=""
     local NETPLAN_FILE=""
+    local partition_mode_set=""
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -1081,6 +1082,24 @@ main() {
                 ssh_param_value="--nossh"
                 shift
                 ;;
+            --auto)
+                if [[ "$PARTITION_MODE" == "manual" && -n "$partition_mode_set" ]]; then
+                    echo "Error: --auto and --manual cannot be used together"
+                    exit 1
+                fi
+                PARTITION_MODE="auto"
+                partition_mode_set="true"
+                shift
+                ;;
+            --manual)
+                if [[ "$PARTITION_MODE" == "auto" && -n "$partition_mode_set" ]]; then
+                    echo "Error: --auto and --manual cannot be used together"
+                    exit 1
+                fi
+                PARTITION_MODE="manual"
+                partition_mode_set="true"
+                shift
+                ;;
             --yaml)
                 if [[ -n "$2" && "$2" != -* ]]; then
                     NETPLAN_FILE="$2"
@@ -1092,11 +1111,13 @@ main() {
                 ;;
             *)
                 echo "Unknown parameter: $1"
-                echo "Usage: $0 [-y|--yes] [-D|--debug] [-h|--hostname HOSTNAME] [-d|--disk DEVICE] [--ssh|--nossh] [--yaml FILENAME]"
+                echo "Usage: $0 [-y|--yes] [-D|--debug] [-h|--hostname HOSTNAME] [-d|--disk DEVICE] [--auto|--manual] [--ssh|--nossh] [--yaml FILENAME]"
                 echo "  -y, --yes              Skip confirmation prompts in auto mode"
                 echo "  -D, --debug            Enable debug mode (pause before chroot)"
                 echo "  -h, --hostname HOSTNAME Override hostname from config"
                 echo "  -d, --disk DEVICE      Override disk device from config"
+                echo "  --auto                 Use automatic partitioning (overrides config)"
+                echo "  --manual               Use manual partitioning (overrides config)"
                 echo "  --ssh                  Force SSH installation (overrides config)"
                 echo "  --nossh                Skip SSH installation (overrides config)"
                 echo "  --yaml FILENAME        Use custom netplan YAML file instead of default"
