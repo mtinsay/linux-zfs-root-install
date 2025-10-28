@@ -497,9 +497,72 @@ destroy_existing_zfs_pools_on_disk() {
         fi
     done <<< "$(zpool list -H -o name 2>/dev/null || true)"
     
-    # Destroy pools that use the target disk
+    # Unmount and destroy pools that use the target disk
     for pool in "${pools_to_destroy[@]}"; do
-        log "Destroying existing ZFS pool: $pool (uses $target_disk)"
+        log "Preparing to destroy existing ZFS pool: $pool (uses $target_disk)"
+        
+        # First, unmount all datasets in this pool
+        log "Unmounting all datasets in pool $pool..."
+        
+        # Get all mounted datasets for this pool (sorted by mount depth, deepest first)
+        local mounted_datasets=$(zfs list -H -o name,mountpoint -t filesystem -r "$pool" 2>/dev/null | \
+            awk '$2 != "none" && $2 != "legacy" && $2 != "-" {print length($2), $1, $2}' | \
+            sort -nr | awk '{print $2, $3}' || true)
+        
+        if [[ -n "$mounted_datasets" ]]; then
+            while IFS=' ' read -r dataset mountpoint; do
+                if [[ -n "$dataset" && -n "$mountpoint" ]]; then
+                    log "Unmounting ZFS dataset: $dataset (mounted at $mountpoint)"
+                    zfs unmount "$dataset" 2>/dev/null || {
+                        warn "Failed to unmount $dataset, forcing unmount..."
+                        zfs unmount -f "$dataset" 2>/dev/null || true
+                    }
+                fi
+            done <<< "$mounted_datasets"
+        fi
+        
+        # Also check for any legacy-mounted datasets and unmount them
+        log "Checking for legacy-mounted datasets in pool $pool..."
+        local legacy_datasets=$(zfs list -H -o name,mountpoint -t filesystem -r "$pool" 2>/dev/null | \
+            awk '$2 == "legacy" {print $1}' || true)
+        
+        if [[ -n "$legacy_datasets" ]]; then
+            while IFS= read -r dataset; do
+                if [[ -n "$dataset" ]]; then
+                    # Find mount points for legacy datasets by checking /proc/mounts
+                    local legacy_mounts=$(grep " zfs " /proc/mounts | grep "$dataset " | awk '{print $2}' || true)
+                    if [[ -n "$legacy_mounts" ]]; then
+                        while IFS= read -r mount_point; do
+                            if [[ -n "$mount_point" ]]; then
+                                log "Unmounting legacy ZFS dataset: $dataset (mounted at $mount_point)"
+                                umount "$mount_point" 2>/dev/null || {
+                                    warn "Failed to unmount $mount_point, forcing unmount..."
+                                    umount -f "$mount_point" 2>/dev/null || umount -l "$mount_point" 2>/dev/null || true
+                                }
+                            fi
+                        done <<< "$legacy_mounts"
+                    fi
+                fi
+            done <<< "$legacy_datasets"
+        fi
+        
+        # Unmount any remaining subdirectories that might be mounted under pool datasets
+        log "Checking for any remaining mounted subdirectories related to pool $pool..."
+        local pool_related_mounts=$(mount | grep -E "(^$pool/|/$pool/)" | awk '{print $3}' | sort -r || true)
+        if [[ -n "$pool_related_mounts" ]]; then
+            while IFS= read -r mount_point; do
+                if [[ -n "$mount_point" ]]; then
+                    log "Unmounting pool-related mount: $mount_point"
+                    umount "$mount_point" 2>/dev/null || {
+                        warn "Failed to unmount $mount_point, forcing unmount..."
+                        umount -f "$mount_point" 2>/dev/null || umount -l "$mount_point" 2>/dev/null || true
+                    }
+                fi
+            done <<< "$pool_related_mounts"
+        fi
+        
+        # Now attempt to destroy the pool
+        log "Destroying ZFS pool: $pool"
         zpool destroy -f "$pool" 2>/dev/null || {
             warn "Failed to destroy pool $pool, attempting export..."
             zpool export -f "$pool" 2>/dev/null || true
