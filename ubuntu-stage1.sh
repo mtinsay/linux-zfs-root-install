@@ -144,32 +144,62 @@ detect_existing_pools() {
         
         # Check if pool exists and destroy it
         local pool_exists="false"
+        local pools_to_destroy=()
+        
+        # Check for pool with matching name
         if zpool list "$POOL_NAME" >/dev/null 2>&1; then
             log "Found existing imported pool: $POOL_NAME"
             pool_exists="true"
+            pools_to_destroy+=("$POOL_NAME")
         elif zpool import -d /dev 2>/dev/null | grep -q "pool: $POOL_NAME"; then
             log "Found existing unimported pool: $POOL_NAME"
             pool_exists="true"
+            pools_to_destroy+=("$POOL_NAME")
         fi
         
-        if [[ "$pool_exists" == "true" ]]; then
-            log "REUSE_ROOT_POOL=false: Destroying existing pool '$POOL_NAME'"
+        # Also check for any pools using the ROOT_PARTITION
+        if [[ -n "$ROOT_PARTITION" ]]; then
+            log "Checking for pools using ROOT_PARTITION: $ROOT_PARTITION"
+            
+            # Get all pools and check their devices
+            while IFS= read -r existing_pool; do
+                if [[ -n "$existing_pool" && "$existing_pool" != "$POOL_NAME" ]]; then
+                    # Get devices used by this pool
+                    local pool_devices
+                    pool_devices=$(zpool list -v -H -P "$existing_pool" 2>/dev/null | awk '{print $1}' | grep "^/dev/" | head -10)
+                    
+                    # Check if any device matches our ROOT_PARTITION
+                    while IFS= read -r device; do
+                        if [[ -n "$device" && "$device" == "$ROOT_PARTITION" ]]; then
+                            log "Found pool '$existing_pool' using ROOT_PARTITION: $ROOT_PARTITION"
+                            pools_to_destroy+=("$existing_pool")
+                            pool_exists="true"
+                            break
+                        fi
+                    done <<< "$pool_devices"
+                fi
+            done <<< "$(zpool list -H -o name 2>/dev/null || true)"
+        fi
+        
+        # Destroy all identified pools
+        for pool_to_destroy in "${pools_to_destroy[@]}"; do
+            log "REUSE_ROOT_POOL=false: Destroying existing pool '$pool_to_destroy'"
             
             # Import pool if not already imported (needed for destruction)
-            if ! zpool list "$POOL_NAME" >/dev/null 2>&1; then
-                log "Importing pool for destruction: $POOL_NAME"
-                zpool import -f "$POOL_NAME" 2>/dev/null || true
+            if ! zpool list "$pool_to_destroy" >/dev/null 2>&1; then
+                log "Importing pool for destruction: $pool_to_destroy"
+                zpool import -f "$pool_to_destroy" 2>/dev/null || true
             fi
             
             # Destroy the pool
-            if zpool list "$POOL_NAME" >/dev/null 2>&1; then
-                log "Destroying pool: $POOL_NAME"
-                zpool destroy -f "$POOL_NAME" || {
-                    warn "Failed to destroy pool $POOL_NAME, attempting export..."
-                    zpool export -f "$POOL_NAME" 2>/dev/null || true
+            if zpool list "$pool_to_destroy" >/dev/null 2>&1; then
+                log "Destroying pool: $pool_to_destroy"
+                zpool destroy -f "$pool_to_destroy" || {
+                    warn "Failed to destroy pool $pool_to_destroy, attempting export..."
+                    zpool export -f "$pool_to_destroy" 2>/dev/null || true
                 }
             fi
-        fi
+        done
         
         # Ignore EXISTING_ROOT_DATASET when not reusing pool
         if [[ -n "$EXISTING_ROOT_DATASET" ]]; then
@@ -574,6 +604,13 @@ create_zfs_pools() {
     else
         # Create new pool (existing pool was already destroyed if needed)
         log "Creating new root pool: $POOL_NAME"
+        
+        # Final safety check - ensure no pool exists with this name
+        if zpool list "$POOL_NAME" >/dev/null 2>&1; then
+            error "Pool $POOL_NAME still exists after cleanup - cannot create new pool"
+            error "This indicates a problem with pool destruction"
+            exit 1
+        fi
         
         zpool create -f \
             -o ashift=12 \

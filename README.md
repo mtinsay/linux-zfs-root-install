@@ -51,7 +51,7 @@ This project provides ZFS root installation scripts for multiple Linux distribut
 - **🔧 Automated Installation**: Complete unattended ZFS root installation
 - **⚙️ Flexible Configuration**: Extensive customization via configuration file
 - **💾 Dual Partitioning Modes**: Support for both automatic and manual partitioning
-- **🗄️ ZFS Pool Management**: Creation, reuse, and proper cache file handling with forced recreation
+- **🗄️ ZFS Pool Management**: Creation, reuse, and forced recreation with comprehensive cleanup
 - **🔐 SSH Control**: Independent SSH installation control with parameter overrides (Ubuntu)
 - **🐛 Debug Framework**: Targeted debug breaks for troubleshooting
 - **🧹 Intelligent Cleanup**: Conditional aggressive cleanup based on actual failures
