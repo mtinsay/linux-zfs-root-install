@@ -1030,10 +1030,18 @@ ff02::2 ip6-allrouters
 EOF
     
     # Copy network configuration
-    log "Copying network configuration..."
+    log "Configuring network setup..."
     mkdir -p $INSTALL_ROOT/etc/netplan
     
-    if [[ -n "$NETPLAN_FILE" ]]; then
+    if [[ "$USE_NETWORK_MANAGER" == "true" ]]; then
+        # Create minimal NetworkManager netplan configuration
+        log "Creating NetworkManager netplan configuration"
+        cat > $INSTALL_ROOT/etc/netplan/00-default.yaml << 'EOF'
+network:
+  version: 2
+  renderer: NetworkManager
+EOF
+    elif [[ -n "$NETPLAN_FILE" ]]; then
         # Use custom netplan file
         log "Using custom netplan file: $NETPLAN_FILE"
         cp "$NETPLAN_FILE" "$INSTALL_ROOT/etc/netplan/"
@@ -1132,6 +1140,7 @@ main() {
     local ssh_param_used="false"
     local ssh_param_value=""
     local NETPLAN_FILE=""
+    local USE_NETWORK_MANAGER="false"
     local partition_mode_set=""
     
     while [[ $# -gt 0 ]]; do
@@ -1201,6 +1210,10 @@ main() {
                 shift
                 ;;
             --yaml)
+                if [[ "$USE_NETWORK_MANAGER" == "true" ]]; then
+                    echo "Error: --yaml and --use-nm cannot be used together"
+                    exit 1
+                fi
                 if [[ -n "$2" && "$2" != -* ]]; then
                     NETPLAN_FILE="$2"
                     shift 2
@@ -1209,9 +1222,17 @@ main() {
                     exit 1
                 fi
                 ;;
+            --use-nm)
+                if [[ -n "$NETPLAN_FILE" ]]; then
+                    echo "Error: --yaml and --use-nm cannot be used together"
+                    exit 1
+                fi
+                USE_NETWORK_MANAGER="true"
+                shift
+                ;;
             *)
                 echo "Unknown parameter: $1"
-                echo "Usage: $0 [-y|--yes] [-D|--debug] [-h|--hostname HOSTNAME] [-d|--disk DEVICE] [--auto|--manual] [--ssh|--nossh] [--yaml FILENAME]"
+                echo "Usage: $0 [-y|--yes] [-D|--debug] [-h|--hostname HOSTNAME] [-d|--disk DEVICE] [--auto|--manual] [--ssh|--nossh] [--yaml FILENAME|--use-nm]"
                 echo "  -y, --yes              Skip confirmation prompts in auto mode"
                 echo "  -D, --debug            Enable debug mode (pause before chroot)"
                 echo "  -h, --hostname HOSTNAME Override hostname from config"
@@ -1221,6 +1242,7 @@ main() {
                 echo "  --ssh                  Force SSH installation (overrides config)"
                 echo "  --nossh                Skip SSH installation (overrides config)"
                 echo "  --yaml FILENAME        Use custom netplan YAML file instead of default"
+                echo "  --use-nm               Use NetworkManager renderer (conflicts with --yaml)"
                 exit 1
                 ;;
         esac

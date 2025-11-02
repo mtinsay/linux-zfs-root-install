@@ -124,11 +124,13 @@ Options:
   --ssh                  Force SSH installation (overrides config)
   --nossh                Skip SSH installation (overrides config)
   --yaml FILENAME        Use custom netplan YAML file instead of default
+  --use-nm               Use NetworkManager renderer (conflicts with --yaml)
 
 Examples:
   sudo ./ubuntu-stage1.sh --auto -y --disk /dev/nvme0n1
   sudo ./ubuntu-stage1.sh --manual --yaml ./custom-network.yaml
   sudo ./ubuntu-stage1.sh --hostname myserver --nossh
+  sudo ./ubuntu-stage1.sh --use-nm --auto -y
 ```
 
 ### NixOS Installation Options
@@ -268,9 +270,20 @@ The pool reuse feature is useful for:
 The installation preserves your live system configuration:
 
 **Network Configuration**:
-- Copies all files from `/etc/netplan/` to the installed system
+- **Default**: Copies all files from `/etc/netplan/` to the installed system
+- **Custom YAML**: Use `--yaml FILENAME` to specify a custom netplan configuration
+- **NetworkManager**: Use `--use-nm` to create minimal NetworkManager configuration
 - Preserves your current network setup (WiFi, static IPs, etc.)
 - No need to reconfigure networking after installation
+
+**NetworkManager Option**:
+The `--use-nm` parameter creates a minimal netplan configuration that uses NetworkManager as the renderer:
+```yaml
+network:
+  version: 2
+  renderer: NetworkManager
+```
+This is useful for desktop installations where you want NetworkManager to handle all network configuration through its GUI tools.
 
 **APT Sources**:
 - Comments out default `sources.list` entries from debootstrap
